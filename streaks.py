@@ -133,16 +133,20 @@ def pool_url(season, limit, page=1, sort=None):
     return f"{WEB}/statistics/byathlete?{urllib.parse.urlencode(params)}"
 
 
-def resolve_season():
-    """ESPN flips currentSeason to the upcoming year during the offseason;
-    step back until we find a season that actually has games."""
+def season_candidates(explicit=None):
+    """The seasons to try, newest first.
+
+    ESPN flips currentSeason to the upcoming year during the offseason, and
+    the byathlete leaderboard starts answering for that year — with the
+    rosters, but no games — days before week 1 kicks off. So "the endpoint
+    returned athletes" is not evidence that a season has been played. Rather
+    than guess from the shape of the stats payload, hand back both years and
+    let the caller fall back when a season's game logs come up empty."""
+    if explicit:
+        return [explicit]
     j = get_json(pool_url(2000, 1))  # any season returns the currentSeason block
     year = ((j.get("currentSeason") or {}).get("year")) or date.today().year
-    for candidate in (year, year - 1):
-        probe = get_json(pool_url(candidate, 1))
-        if probe.get("athletes"):
-            return candidate
-    return year - 1
+    return [year, year - 1]
 
 
 def season_label(season):
@@ -247,7 +251,8 @@ def build(season, pool_size, workers):
     real_teams = load_teams()
     pool = load_pool(season, pool_size)
     if not pool:
-        sys.exit(f"No stats returned for {season_label(season)}.")
+        print(f"  no stats returned for {season_label(season)}.", flush=True)
+        return []
     print(f"{len(pool)} players. pulling game logs …", flush=True)
 
     out, done = [], 0
@@ -574,8 +579,12 @@ def main():
     if a.demo:
         rows, season = demo_data(), a.season or 2026
     else:
-        season = a.season or resolve_season()
-        rows = build(season, a.pool, a.workers)
+        rows, season = [], None
+        for season in season_candidates(a.season):
+            rows = build(season, a.pool, a.workers)
+            if rows:
+                break
+            print(f"{season_label(season)} has no games played yet.", flush=True)
     if not rows:
         sys.exit("Nothing to write.")
     p = write_html(rows, season, a.out)
