@@ -436,7 +436,7 @@ footer{padding:16px 20px;border-top:1px solid var(--line);display:flex;flex-wrap
   <div class="row2">
     <span class="lbl">BREAKS</span>
     <div class="seg" id="breaks"></div>
-    <span class="lbl">MIN G</span><input id="ming" type="number" value="8" min="1" style="width:52px">
+    <span class="lbl">MIN G</span><input id="ming" type="number" value="__MING__" min="1" style="width:52px">
     <span class="lbl">SEARCH</span><input id="q" class="search" placeholder="player, team, or position">
     <button id="shot" class="pill snap" type="button">Save image</button>
   </div>
@@ -553,12 +553,24 @@ render();
 """
 
 
+def default_min_games(rows):
+    """Starting value for the MIN G sample-size filter.
+
+    Eight is the right floor once a season is deep enough to have one, but a
+    season in progress doesn't: two weeks in, the deepest game log is two, so
+    a hard-coded 8 filters out every player and the page renders empty. Cap
+    the default at the longest log in the pool so an early-season build still
+    shows the players who have played the most."""
+    return max(1, min(8, max((len(r["dates"]) for r in rows), default=0)))
+
+
 def write_html(rows, season, out_path):
     html = (
         TEMPLATE.replace("__DATA__", json.dumps(rows, separators=(",", ":")))
         .replace("__CATS__", json.dumps([[k, lab] for k, lab, _ in CATS]))
         .replace("__SEASON__", season_label(season))
         .replace("__N__", str(len(rows)))
+        .replace("__MING__", str(default_min_games(rows)))
         .replace("__BUILT__", date.today().isoformat())
     )
     Path(out_path).write_text(html, encoding="utf-8")
