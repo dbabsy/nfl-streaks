@@ -6,6 +6,8 @@ on:
   workflow_dispatch: {}
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -13,7 +15,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -34,6 +36,9 @@ jobs:
 
   deploy:
     needs: build
+    # A pull request builds the page to prove the generator still works, but
+    # only main is ever published.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
